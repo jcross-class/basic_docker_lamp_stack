@@ -1,0 +1,65 @@
+Basic info
+
+You need to build the docker image defined in the Dockerfile in the httpd_php_container directory.
+I commented the steps in the Dockerfile to explain what is going on.  This image is based
+on CentOS linux (centos.org) which is a free version of RedHat Enterprise Linux without support.
+I installed PHP 7.0 provided by the remi repository.  Remi builds all the PHP packages for CentOS and RHEL,
+so he's a pretty trust worthy source.  I installed all the packages you needed plus a few extras.  If you
+need more, when in the container, get a list of packages available and write it to the file list.txt:
+yum list > list.txt
+Then use grep to find all the packages you can install for PHP 7.0:
+grep -i php70 list.txt
+For example, the xdebug package is:
+php70-php-pecl-xdebug
+
+Note that in the docker file, you can have 1 command span multiple lines.  You do that by escaping the newline.
+So basically, it looks like this:
+start of command \
+more of the command
+
+The \ before the newline is what escapes it.  I use that to make the yum install command easy to understand.
+Commands can be chained together using && which means only run the next command if the first one worked okay.
+Docker images are built in layers, so in order to minimize the number of layers, it is common to chain multiple
+commands together into 1 long command which is run using the RUN Dockerfile keyword.
+
+I installed PHP Unit and Composer directly from their respective websites.  The container will run httpd when it
+is started.
+
+The build command is:
+docker build -t centos_php70_httpd:0 .
+
+The docker image name and tag are used in the docker-compose file. If you build a new image, say:
+centos_php70_httpd:1
+You will need to update the docker-compose.yml file to use it.
+
+The docker-compose.yml file requires docker-compose to work.  It is version 2 of the docker-compose file format.
+This means it can managed volumes and networks for you.  I used the standard MySQL image available from docker hub,
+since in production you will just use RDS.  The MySQL service has a volume named mysql_data associated with it.
+This volume will be created for you, and it can exist after the container has been deleted.  This makes it easy
+to update your containers without losing your data.  That is of course important when working with a database.
+
+The MySQL image I used came from: https://hub.docker.com/_/mysql/
+
+Note that the root password is set in the docker compose file.  To connect to MySQL for the first time, you need
+to use the username root and the password listed in that file.
+
+For the Apache HTTPD container, it is configured to mount the directory "code" at /var/www/html.  I put an example
+index.php file in there.  When you start up the container and go to the container's IP, it will run that file.
+
+Since we're using docker-compose, you can connect from the httpd container to the mysql container using the mysql
+container's aliases.  I set one up named simple "mysql".  So, in order to connect to it from you PHP code you
+would simply use "mysql" as the hostname (no quotes of course).  When you go to prod, you would change that to your
+RDS endpoint name.
+
+One important thing to note about the httpd container, it uses Software Collections (SCL) in order to install PHP7.
+This allows multiple versions of the same software to be installed on the same CentOS system.  So, PHP is in a place
+you normally wouldn't expect:
+/opt/remi/php70/root/usr/bin/php
+
+The Dockerfile adds the necessary startup command to bash to allow php to be in your path (so you can just type php):
+echo 'source scl_source enable php70' > /etc/profile.d/scl-php70.sh
+
+In order for this to work properly, when you enter the container, you need to add the -l flag to bash, so for example:
+docker-compose exec Httpd /bin/bash -l
+
+Without the -l flag, bash won't know where to find php.
