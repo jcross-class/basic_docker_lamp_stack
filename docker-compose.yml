@@ -3,6 +3,8 @@ version: '2.0'
 services:
   Httpd:
     image: centos_php70_httpd:0
+    environment:
+      - ENABLE_XDEBUG=1
     volumes:
       - ./code:/var/www/html
     ports:

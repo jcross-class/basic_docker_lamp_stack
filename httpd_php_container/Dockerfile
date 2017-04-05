@@ -35,7 +35,9 @@ RUN yum makecache && \
 # create a directory for logs
     mkdir /var/opt/remi/php70/log/php && \
     chown apache:root /var/opt/remi/php70/log/php && \
-    chmod 770 /var/opt/remi/php70/log/php
+    chmod 770 /var/opt/remi/php70/log/php && \
+# disable the xdebug extension by default
+    sed -i 's/zend_extension=/;zend_extension=/' /etc/opt/remi/php70/php.d/15-xdebug.ini
 
 # Install phpunit
 RUN curl -L -o /usr/bin/phpunit https://phar.phpunit.de/phpunit-6.0.9.phar && \
@@ -46,9 +48,20 @@ RUN scl enable php70 -- bash -c "\
     curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/bin" && \
     ln -s /usr/bin/composer.phar /usr/bin/composer
 
-# Set up web root
-RUN mkdir -p /var/www/html
+COPY ./docker-entrypoint.sh /docker-entrypoint.sh
+COPY zz98-custom-overrides.ini /etc/opt/remi/php70/php.d/zz98-custom-overrides.ini
 
+
+# Set up web root
+RUN mkdir -p /var/www/html && \
+# fix permissions/ownership of docker-entrypoint.sh
+    chmod 755 /docker-entrypoint.sh && \
+    chown root:root /docker-entrypoint.sh && \
+# create a directory to hold docker run time set up files, if any
+    mkdir /docker-setup
+
+# pass all commands to /docker-entrypoint.sh
+ENTRYPOINT ["/docker-entrypoint.sh"]
 # the standard command to run apache httpd
 CMD ["/usr/sbin/httpd", "-k", "start", "-D", "FOREGROUND"]
 
